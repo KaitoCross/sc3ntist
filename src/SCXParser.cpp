@@ -104,6 +104,18 @@ std::string GetFirstSC3String(const std::vector<std::string> &stringTable,
   return "";
 }
 
+std::string GetFirstCleanSC3String(const std::vector<std::string> &stringTable,
+                              const SC3Instruction *inst) {
+    for (const auto &arg : inst->args()) {
+        if (arg.type == StringRef) {
+            if (arg.uint16_value < stringTable.size())
+                return stringTable[arg.uint16_value];
+            return "";
+        }
+    }
+    return "";
+}
+
 void* chooseDisassembler(std::string game, SCXFile& file)
 {
     if (game == "CC")
@@ -169,6 +181,7 @@ int main() {
   }
 
   int fileId = 0;
+  int audios = 0;
   for (auto &p : std::filesystem::directory_iterator(path)) {
     //std::cout << p.path().string()<< std::endl;
     std::string filext = p.path().extension().string();
@@ -182,6 +195,7 @@ int main() {
     file.close();
 
     std::string outPath = p.path().string() + ".txt";
+    std::string voiceLinesPath = p.path().string() + "-voicedlines.txt";
     SCXFile scx(buf, size, p.path().filename().string(), fileId++);
     //SGHDDisassembler dis(scx);
     void* dis = chooseDisassembler(game,scx);
@@ -203,14 +217,22 @@ int main() {
 
     std::ofstream outFile(outPath,
                           std::ios::out | std::ios::trunc | std::ios::binary);
+    std::ofstream voiceLinesFile(voiceLinesPath,
+                          std::ios::out | std::ios::trunc | std::ios::binary);
     int i = 0;
     for (const auto &label : scx.disassembly()) {
+      bool dialogue = false;
       outFile << "\n#label" << i << "_" << label->address() << ":\n";
       i++;
       for (const auto &inst : label->instructions()) {
+        std::string voicetemp = "";
         if (inst->name() == "Assign") {
           outFile << "\t" << SC3ArgumentToString(inst->args().at(0)) << "\n";
           continue;
+        }
+        if (inst->name() == "LoadVoicedDialogue")
+        {
+            dialogue = true;
         }
         outFile << "\t" << inst->name();
         int i = 0;
@@ -222,13 +244,33 @@ int main() {
             outFile << arg.name << ": ";
             outFile << SC3ArgumentToString(arg);
             if (i < argCount) outFile << ", ";
+            if (dialogue) {
+                if (arg.name == "characterId") {
+                    voiceLinesFile << "[#characterId=" + SC3ArgumentToString(arg) + "]";
+                    //if (stoi(SC3ArgumentToString(arg)) == 0) {
+                    //    audios++;
+                    //    std::cout << "Kurisu Lines: "<<audios<<std::endl;
+                    //}
+                }
+                if (arg.name == "audioId") {
+                    voicetemp = "[audioId]" + SC3ArgumentToString(arg);
+                }
+            }
           }
           outFile << ")";
           outFile << GetFirstSC3String(stringTable, inst.get());
+          if (dialogue) {
+              std::string voiceline = GetFirstCleanSC3String(stringTable, inst.get());
+              voiceLinesFile << voiceline;
+              voiceLinesFile << voicetemp + "\n";
+              //voiceLinesFile << "\n";
+              dialogue = false;
+          }
         }
         outFile << "\n";
       }
     }
+    voiceLinesFile.close();
     outFile.close();
     free(dis);
     free(strdec);
