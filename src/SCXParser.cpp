@@ -195,7 +195,7 @@ int main() {
     file.close();
 
     std::string outPath = p.path().string() + ".txt";
-    std::string voiceLinesPath = p.path().string() + "-voicedlines.txt";
+    std::string voiceLinesPath = p.path().string() + "-characterlines.txt";
     SCXFile scx(buf, size, p.path().filename().string(), fileId++);
     //SGHDDisassembler dis(scx);
     void* dis = chooseDisassembler(game,scx);
@@ -230,7 +230,7 @@ int main() {
           outFile << "\t" << SC3ArgumentToString(inst->args().at(0)) << "\n";
           continue;
         }
-        if (inst->name() == "LoadVoicedDialogue")
+        if (inst->name() == "LoadVoicedDialogue" || inst->name() == "LoadDialogue")
         {
             dialogue = true;
         }
